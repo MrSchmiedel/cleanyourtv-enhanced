@@ -36,7 +36,7 @@ public class GlassView extends View {
         radius = 20f * density;
         rim.setStyle(Paint.Style.STROKE);
         rim.setStrokeWidth(1.5f * density);
-        rim.setColor(0xCCFFFFFF);
+        rim.setColor(0xE6FFFFFF);   // enhanced fork: a near-white rim that fades into the halo
         glow.setStyle(Paint.Style.STROKE);
         // Cache the slab as a texture. The spring only changes translation, so the GPU can
         // move it without replaying clipPath and the glow on every frame. That path is
@@ -49,7 +49,7 @@ public class GlassView extends View {
         if (argb == 0) {
             glowRgb = 0xFFFFFF;
             glowAlpha = 0x30;
-            rim.setColor(0xCCFFFFFF);
+            rim.setColor(0xE6FFFFFF);   // enhanced fork: a near-white rim that fades into the halo
         } else {
             glowRgb = argb & 0xFFFFFF;
             glowAlpha = 0x70;
@@ -83,7 +83,7 @@ public class GlassView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
-        float inset = 6f * density;   // room for the glow
+        float inset = (halo ? 10f : 6f) * density;   // room for the glow (local change: a wider halo on this TV)
         rect.set(inset, inset, getWidth() - inset, getHeight() - inset);
 
         // Outer glow: thin rings across the inset, each a little fainter, so it fades out smoothly. Three wide
@@ -92,7 +92,7 @@ public class GlassView extends View {
         if (!flat || halo) {
             int rings = 12;
             float step = inset / rings;
-            int alpha = flat ? glowAlpha / 2 : glowAlpha;
+            int alpha = flat ? (halo ? glowAlpha * 2 : glowAlpha / 2) : glowAlpha;   // local change: a visible white halo
             glow.setStrokeWidth(step + 0.5f);
             for (int i = 0; i < rings; i++) {
                 float o = step * (i + 0.5f);

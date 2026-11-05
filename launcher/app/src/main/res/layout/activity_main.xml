@@ -332,6 +332,16 @@
                 android:clipToPadding="false"
                 android:orientation="horizontal">
 
+                <!-- Enhanced fork: outside temperature and condition, from Weather.java. Not focusable. -->
+                <TextView
+                    android:id="@+id/btnWeather"
+                    style="@style/TopButton"
+                    android:focusable="false"
+                    android:focusableInTouchMode="false"
+                    android:clickable="false"
+                    android:visibility="gone"
+                    android:text="" />
+
                 <TextView
                     android:id="@+id/btnInputs"
                     style="@style/TopButton"

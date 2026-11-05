@@ -99,6 +99,9 @@
     <string name="dock_edit">Edit dock</string>
     <!-- Settings menu: opens the system power menu (Restart on most TVs). -->
     <string name="power_menu">Restart…</string>
+    <!-- Enhanced fork: the quick settings panel's restart row, without the ellipsis. -->
+    <string name="restart_tv">Restart</string>
+    <string name="continue_watching">Continue watching</string>
     <string name="dock_edit_hint">Choose the dock place to change and press OK. Back to finish.</string>
     <string name="dock_edit_pick_app">Now choose the app to put there and press OK. Back to choose another place.</string>
     <string name="tile_add_to_dock">Add to dock</string>

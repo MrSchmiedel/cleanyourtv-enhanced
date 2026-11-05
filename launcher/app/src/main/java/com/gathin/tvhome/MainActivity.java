@@ -250,6 +250,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     /** App of the last focused tile, so focus follows it when the app list changes. */
     private static String lastFocusedKey;
     private float density;
+    private ContinueWatching shelf;   // enhanced fork
+    private Weather weather;   // enhanced fork
+    private float glassPad = 6f;   // enhanced fork: the glass highlight's glow inset, px
     /** Module cards (res/values/config.xml, module_cards): discovered on resume, shown only after the owner's Show. */
     private boolean moduleCards;
     /** config settings_key_keycodes / settings_key_panel, so the Settings button works on Home without HomeKeyService. */
@@ -510,6 +513,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
         glass.setStyle(cfg.glassStyle);
+        glassPad = (Config.GLASS_HALO.equals(cfg.glassStyle) ? 10f : 6f) * density;   // local change: GlassView's halo inset
         if (festive) glass.setAccent(festival.accentColor());
         ambient = findViewById(R.id.ambient);
         // The glow is one bitmap, so its alpha can be applied while drawing it. Otherwise every frame of
@@ -600,6 +604,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             date.setTextSize(11f);
             lunarDate.setTextSize(11f);
             date.setPadding(0, (int) (4 * density), 0, 0);
+        }
+        styleEnhancedHeader();
+        if (getResources().getBoolean(R.bool.weather_pill)) {
+            weather = new Weather(this, findViewById(R.id.btnWeather), getString(R.string.weather_latitude),
+                    getString(R.string.weather_longitude), getString(R.string.weather_unit));
         }
         vpnApp = cfg.vpnApp;
         vpnPill = cfg.vpnPill && !cfg.topMenu;
@@ -897,7 +906,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
-                // Back to the dock tile Up came from, not wherever the focus finder lands.
+                // Back to the dock tile Up came from, not wherever the focus finder lands (the shelf first, when it has rows).
+                if (shelf != null && shelf.focusFromTopBar()) return true;
                 focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
@@ -1081,6 +1091,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     protected void onResume() {
+        // Enhanced fork: the Continue watching shelf, refreshed each time Home comes back.
+        if (shelf == null && getResources().getBoolean(R.bool.continue_watching)) {
+            shelf = ContinueWatching.create(this, findViewById(R.id.root), grid, COLUMNS, density, new ContinueWatching.Host() {
+                @Override public void focusDock() { focusTile(singleRow ? lastFocused : lastFocused % COLUMNS); }
+                @Override public void focusTopBar() {
+                    View first = btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton();
+                    first.requestFocus();
+                }
+                @Override public void onShelfFocused() { hideHero(); hideGlass(); }
+            });
+        }
+        if (shelf != null) shelf.refresh();
+        if (weather != null) weather.onResume();
         super.onResume();
         resumed = true;
         // A festival that started or ended while Home was in the background: rebuild with or without it.
@@ -1297,6 +1320,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     protected void onPause() {
+        if (weather != null) weather.onPause();
         super.onPause();
         resumed = false;
         // No UP reaches a paused Home, so a vendor-key hold it saw go down would still open its app later.
@@ -1793,6 +1817,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     @Override
     public void onTileFocused(int position, View card) {
+        if (shelf != null) shelf.onGridFocus(position);
         lastFocused = position;
         lastFocusedKey = adapter.keyAt(position);
         // Focus restored before the first layout (cold start): the tile has no size yet, and the glass
@@ -1807,7 +1832,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         Rect r = tileRect;
         r.set(0, 0, card.getWidth(), card.getHeight());
         root.offsetDescendantRectToMyCoords(card, r);
-        float pad = 6f * density;        // matches GlassView's glow inset
+        float pad = glassPad;            // matches GlassView's glow inset
         float scale = adapter.focusScale();
         float w = card.getWidth() * scale + 2 * pad;
         float h = card.getHeight() * scale + 2 * pad;
@@ -1884,7 +1909,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         RecyclerView.ViewHolder vh = grid.findViewHolderForAdapterPosition(pos);
         View card = vh == null ? null : vh.itemView.findViewById(R.id.card);
         if (card == null || card.getWidth() <= 0 || !card.isFocused()) return;
-        float pad = 6f * density;
+        float pad = glassPad;
         float scale = adapter.focusScale();
         int w = (int) (card.getWidth() * scale + 2 * pad);
         int h = (int) (card.getHeight() * scale + 2 * pad);
@@ -2449,7 +2474,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     rtlAppGrid, keyCode == KeyEvent.KEYCODE_DPAD_LEFT);
         }
         if (keyCode == KeyEvent.KEYCODE_DPAD_UP) {
-            if (position < COLUMNS) return false;          // dock row: let focus move to the top bar
+            if (position < COLUMNS) return shelf != null && shelf.focusFromDock();   // dock row: shelf, else the top bar
             target = position - COLUMNS;
         } else {
             int lastRowStart = ((count - 1) / COLUMNS) * COLUMNS;
@@ -2505,6 +2530,67 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
     }
 
+    /**
+     * Enhanced fork: tabular digits so the clock keeps one width as the minutes change
+     * (Outfit carries the tnum feature), the date on two lines in mixed case ("Wednesday" / "November 4th"), and
+     * the line and the date centred on the clock instead of hanging from its baseline.
+     */
+    private void styleEnhancedHeader() {
+        android.widget.TextClock clock = findViewById(R.id.clock);
+        clock.setFontFeatureSettings("tnum");
+        android.widget.TextClock date = findViewById(R.id.date);
+        date.setAllCaps(false);
+        date.setSingleLine(false);
+        date.setMaxLines(2);
+        date.setLetterSpacing(0.03f);
+        date.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16f);
+        date.setLineSpacing(Math.round(3 * density), 1f);
+        date.setIncludeFontPadding(false);
+        LinearLayout clockRow = (LinearLayout) clock.getParent();
+        clockRow.setGravity(Gravity.CENTER_VERTICAL);
+        clockRow.setBaselineAligned(false);
+        View divider = findViewById(R.id.clockDivider);
+        View column = (View) date.getParent();
+        for (View v : new View[] {divider, column}) {
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) v.getLayoutParams();
+            lp.gravity = Gravity.CENTER_VERTICAL;
+            lp.bottomMargin = 0;
+            v.setLayoutParams(lp);
+        }
+        // The line as tall as the two date lines, whatever the font makes of them.
+        column.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            int h = b - t;
+            if (h > 0 && divider.getLayoutParams().height != h) {
+                divider.getLayoutParams().height = h;
+                divider.requestLayout();
+            }
+        });
+        updateHeaderDate();
+    }
+
+    private final Runnable headerDateTick = this::updateHeaderDate;
+
+    /** "Wednesday" over "November 4th": the ordinal is not a format letter, so the format is rebuilt daily. */
+    private void updateHeaderDate() {
+        android.widget.TextClock date = findViewById(R.id.date);
+        if (date == null) return;
+        Calendar now = Calendar.getInstance();
+        int day = now.get(Calendar.DAY_OF_MONTH);
+        String suffix = (day % 100 >= 11 && day % 100 <= 13) ? "th"
+                : day % 10 == 1 ? "st" : day % 10 == 2 ? "nd" : day % 10 == 3 ? "rd" : "th";
+        String format = "EEEE\nMMMM d'" + suffix + "'";
+        date.setFormat12Hour(format);
+        date.setFormat24Hour(format);
+        Calendar next = (Calendar) now.clone();
+        next.add(Calendar.DAY_OF_MONTH, 1);
+        next.set(Calendar.HOUR_OF_DAY, 0);
+        next.set(Calendar.MINUTE, 0);
+        next.set(Calendar.SECOND, 5);
+        next.set(Calendar.MILLISECOND, 0);
+        handler.removeCallbacks(headerDateTick);
+        handler.postDelayed(headerDateTick, Math.max(1_000L, next.getTimeInMillis() - now.getTimeInMillis()));
+    }
+
     /** Centre the one-row header when the greeting and extra date lines are absent (#2265). */
     private void centerCompactHeader() {
         LinearLayout clockRow = (LinearLayout) findViewById(R.id.clock).getParent();
@@ -2553,7 +2639,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int n = bar.getChildCount();
         for (int k = 0; k < n; k++) {
             View button = bar.getChildAt(rtl ? n - 1 - k : k);
-            if (button != btnInputs && button.getVisibility() == View.VISIBLE) return button;
+            // Enhanced fork: the weather pill is a top-bar child that takes no focus; skip it.
+            if (button != btnInputs && button.getVisibility() == View.VISIBLE && button.isFocusable()) return button;
         }
         return findViewById(R.id.btnSettings);
     }
@@ -2707,6 +2794,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         handler.removeCallbacks(clockCheck);
         if (valid) {
             updateGreeting();
+            updateHeaderDate();
         } else {
             handler.postDelayed(clockCheck, 1_000L);
         }

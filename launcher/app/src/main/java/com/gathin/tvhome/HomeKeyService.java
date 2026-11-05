@@ -21,6 +21,10 @@ import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.accessibility.AccessibilityWindowInfo;
+import android.content.res.Resources;
+import java.util.List;
 import android.widget.Toast;
 
 import java.util.Collections;
@@ -364,7 +368,50 @@ public class HomeKeyService extends AccessibilityService {
     /** The system power menu (Restart, and Power off where the firmware has it); the TV asks before it acts. */
     static void openPowerMenu() {
         HomeKeyService service = running;
-        if (service != null) service.performGlobalAction(GLOBAL_ACTION_POWER_DIALOG);
+        if (service == null) return;
+        service.performGlobalAction(GLOBAL_ACTION_POWER_DIALOG);
+        // Enhanced fork: make Restart one press. The power menu on this TCL (Android's
+        // LegacyGlobalActions) lists Lockdown, Power off and Restart with no confirmation, so once it is up the
+        // helper clicks the row labelled with the system's own "Restart" string. Needs canRetrieveWindowContent
+        // and flagRetrieveInteractiveWindows in home_key_service.xml. Gives up after about 7 seconds.
+        service.restartTries = 0;
+        service.restartHandler.removeCallbacks(service.clickRestart);
+        service.restartHandler.postDelayed(service.clickRestart, 350);
+    }
+
+    private final Handler restartHandler = new Handler(Looper.getMainLooper());
+    private int restartTries;
+    private final Runnable clickRestart = new Runnable() {
+        @Override
+        public void run() {
+            if (clickRestartItem()) return;
+            if (++restartTries < 20) restartHandler.postDelayed(this, 350);
+        }
+    };
+
+    /** The power menu's Restart row, by the framework's own label so it follows the TV's language. */
+    private boolean clickRestartItem() {
+        String label = "Restart";
+        int id = Resources.getSystem().getIdentifier("global_action_restart", "string", "android");
+        if (id != 0) {
+            try { label = Resources.getSystem().getString(id); } catch (Resources.NotFoundException ignored) { }
+        }
+        List<AccessibilityWindowInfo> windows = getWindows();
+        if (windows == null) return false;
+        for (AccessibilityWindowInfo window : windows) {
+            AccessibilityNodeInfo root = window.getRoot();
+            if (root == null) continue;
+            List<AccessibilityNodeInfo> hits = root.findAccessibilityNodeInfosByText(label);
+            if (hits == null) continue;
+            for (AccessibilityNodeInfo hit : hits) {
+                CharSequence text = hit.getText();
+                if (text == null || !label.contentEquals(text)) continue;   // exact: not "Restart later" and the like
+                AccessibilityNodeInfo target = hit;
+                while (target != null && !target.isClickable()) target = target.getParent();
+                if (target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK)) return true;
+            }
+        }
+        return false;
     }
 
     static boolean powerOnRedirect(String liveTv, CharSequence pkg, long now, long armedUntil) {

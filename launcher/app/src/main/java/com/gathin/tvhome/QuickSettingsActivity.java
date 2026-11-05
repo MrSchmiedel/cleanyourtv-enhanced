@@ -40,6 +40,11 @@ public final class QuickSettingsActivity extends Activity {
         }
         findViewById(R.id.scrim).setOnClickListener(v -> finish());
         LinearLayout rows = findViewById(R.id.rows);
+        // Enhanced fork: Restart first. The panel only opens through HomeKeyService,
+        // which is what opens the system power menu; the TV asks before it restarts.
+        if (HomeKeyService.canOpenPowerMenu()) {
+            addRow(rows, R.drawable.ic_power, R.string.restart_tv, 0, this::restartTv);
+        }
         addRow(rows, R.drawable.ic_settings, R.string.tv_settings, 0, SystemSettings.intent(this, Settings.ACTION_SETTINGS));
         addRow(rows, R.drawable.ic_picture, R.string.quick_picture, 0, SystemSettings.intent(this, Settings.ACTION_DISPLAY_SETTINGS));
         addRow(rows, R.drawable.ic_wifi, R.string.quick_network, 0, SystemSettings.intent(this, Settings.ACTION_WIFI_SETTINGS));
@@ -49,6 +54,13 @@ public final class QuickSettingsActivity extends Activity {
         addRow(rows, R.drawable.ic_home_settings, R.string.launcher_settings, 0,
                 new Intent(this, MainActivity.class).setAction(MainActivity.ACTION_LAUNCHER_SETTINGS));
         rows.getChildAt(0).requestFocus();
+    }
+
+    /** Enhanced fork: the system power menu. A sideloaded app cannot reboot the TV itself
+     *  (android.permission.REBOOT is system-only) and this TCL build hides Restart from Settings > About,
+     *  so the power menu is the only door; its restart ends in standby on this firmware. */
+    private void restartTv() {
+        HomeKeyService.openPowerMenu();
     }
 
     /** Settings pressed again while the panel is up. */
@@ -65,6 +77,21 @@ public final class QuickSettingsActivity extends Activity {
         super.onPause();
         finish();
         overridePendingTransition(0, 0);
+    }
+
+    private void addRow(LinearLayout rows, int icon, int title, int status, Runnable action) {
+        View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
+        ((ImageView) row.findViewById(R.id.icon)).setImageResource(icon);
+        ((TextView) row.findViewById(R.id.title)).setText(title);
+        row.findViewById(R.id.dot).setVisibility(View.GONE);
+        TextView hint = row.findViewById(R.id.status);
+        if (status != 0) hint.setText(status);
+        else hint.setVisibility(View.GONE);
+        row.setOnClickListener(v -> {
+            finish();
+            action.run();
+        });
+        rows.addView(row);
     }
 
     private void addRow(LinearLayout rows, int icon, int title, int status, Intent target) {

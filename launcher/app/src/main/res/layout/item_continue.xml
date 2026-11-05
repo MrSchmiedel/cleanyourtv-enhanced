@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Enhanced fork: one card of the Continue watching shelf (ContinueWatching.java). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_marginEnd="14dp"
+    android:orientation="vertical"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <FrameLayout
+        android:id="@+id/card"
+        android:layout_width="156dp"
+        android:layout_height="88dp"
+        android:focusable="true"
+        android:focusableInTouchMode="true"
+        android:background="@drawable/continue_card_bg">
+
+        <ImageView
+            android:id="@+id/poster"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:scaleType="centerCrop"
+            android:contentDescription="@null" />
+
+        <View
+            android:id="@+id/track"
+            android:layout_width="match_parent"
+            android:layout_height="3dp"
+            android:layout_gravity="bottom"
+            android:background="#66000000" />
+
+        <View
+            android:id="@+id/fill"
+            android:layout_width="1dp"
+            android:layout_height="3dp"
+            android:layout_gravity="bottom|left"
+            android:background="#FFFFFFFF" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/title"
+        android:layout_width="156dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="9dp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textColor="#FFFFFFFF"
+        android:textSize="13sp"
+        android:fontFamily="@string/font_regular"
+        android:includeFontPadding="false"
+        android:alpha="0" />
+
+    <TextView
+        android:id="@+id/sub"
+        android:layout_width="156dp"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="3dp"
+        android:singleLine="true"
+        android:ellipsize="end"
+        android:textColor="#A6FFFFFF"
+        android:textSize="11sp"
+        android:fontFamily="@string/font_regular"
+        android:includeFontPadding="false"
+        android:alpha="0" />
+</LinearLayout>

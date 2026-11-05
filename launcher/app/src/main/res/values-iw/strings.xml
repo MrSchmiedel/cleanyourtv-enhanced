@@ -152,4 +152,6 @@
     <string name="clock_format_system">מערכת</string>
     <string name="clock_format_12">12 שעות</string>
     <string name="clock_format_24">24 שעות</string>
+    <string name="restart_tv">הפעלה מחדש</string>
+    <string name="continue_watching">המשך צפייה</string>
 </resources>
